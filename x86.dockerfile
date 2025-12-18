@@ -1,4 +1,4 @@
-FROM curobo_docker:rtx40xxx
+FROM curobo_ros:ada_lovelace-dev
 
 # Add camera azure kinect
 RUN apt update && apt install software-properties-common \
@@ -44,17 +44,57 @@ RUN git clone -b humble-devel https://github.com/doosan-robotics/doosan-robot2.g
 RUN sed -i '771d' /home/ros2_ws/src/Azure_Kinect_ROS_Driver/src/k4a_ros_device.cpp
 
 ### install gazebo sim for doosan package
-RUN sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
+# RUN sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
+# RUN wget http://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
+# RUN apt-get update
+# RUN apt-get install -y ros-humble-gazebo-ros-pkgs ros-humble-moveit-msgs\
+#         ros-humble-ros-gz-sim ros-humble-ros-gz libpoco-dev libyaml-cpp-dev\
+#         ros-humble-control-msgs ros-humble-realtime-tools ros-humble-xacro\
+#         ros-humble-joint-state-publisher-gui ros-humble-ros2-control\
+#         ros-humble-ros2-controllers ros-humble-gazebo-msgs ros-humble-moveit-msgs\
+#         dbus-x11 ros-humble-moveit-configs-utils ros-humble-moveit-ros-move-group \
+#         libignition-gazebo6-dev libignition-msgs9-dev libignition-common5-dev \
+#         ros-humble-image-proc
+RUN sudo apt-get update && apt-get install -y libpoco-dev libyaml-cpp-dev wget \
+                        ros-humble-control-msgs ros-humble-realtime-tools ros-humble-xacro \
+                        ros-humble-joint-state-publisher-gui ros-humble-ros2-control \
+                        ros-humble-ros2-controllers ros-humble-gazebo-msgs ros-humble-moveit-msgs \
+                        dbus-x11 ros-humble-moveit-configs-utils ros-humble-moveit-ros-move-group \
+                        ros-humble-gazebo-ros-pkgs ros-humble-ros-gz-sim ros-humble-ign-ros2-control
+
+RUN  sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
 RUN wget http://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
 RUN apt-get update
-RUN apt-get install -y ros-humble-gazebo-ros-pkgs ros-humble-moveit-msgs\
-        ros-humble-ros-gz-sim ros-humble-ros-gz libpoco-dev libyaml-cpp-dev\
-        ros-humble-control-msgs ros-humble-realtime-tools ros-humble-xacro\
-        ros-humble-joint-state-publisher-gui ros-humble-ros2-control\
-        ros-humble-ros2-controllers ros-humble-gazebo-msgs ros-humble-moveit-msgs\
-        dbus-x11 ros-humble-moveit-configs-utils ros-humble-moveit-ros-move-group libignition-gazebo6-dev ros-humble-image-proc
+RUN apt-get install -y libignition-gazebo6-dev ros-humble-gazebo-ros-pkgs ros-humble-ros-gz-sim ros-humble-ros-gz
 
+
+
+
+### Install Field2Cover
+RUN  apt-get update && \
+    apt-get install --no-install-recommends -y ca-certificates \
+    doxygen git libeigen3-dev libgdal-dev    \
+    python3-matplotlib python3-tk lcov libgtest-dev libtbb-dev swig libgeos-dev \
+    gnuplot libtinyxml2-dev nlohmann-json3-dev && python3 -m pip install gcovr
+
+RUN cd /home/ && git clone https://github.com/Fields2Cover/Fields2Cover.git
+RUN cd /home/Fields2Cover && \
+    mkdir -p build && \
+    cd build && \
+    cmake .. && \
+    make -j$(nproc) && \
+    make install 
 
 WORKDIR /home/ros2_ws
+
+# Fix protobuf version conflict - ensure system protobuf is used after Fields2Cover installation
+RUN rm -rf /usr/local/bin/protoc* \
+           /usr/local/lib/libprotobuf* \
+           /usr/local/lib/cmake/protobuf* \
+           /usr/local/lib/cmake/utf8_range* \
+           /usr/local/include/google/protobuf* && \
+    apt-get install -y --reinstall libprotobuf-dev protobuf-compiler && \
+    ldconfig
+
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
     colcon build"
